@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { QuadrantKey } from "@/types/task";
 
 const taskSchema = z.object({
@@ -22,7 +23,25 @@ const idSchema = z.string().uuid();
 
 export type CreateTaskInput = z.infer<typeof taskSchema>;
 
+const AUTH_DISABLED = process.env.AUTH_DISABLED === "true";
+
+const ensureDemoContext = () => {
+  const userId = process.env.DEMO_USER_ID;
+  const workspaceId = process.env.DEMO_WORKSPACE_ID;
+  if (!userId || !workspaceId) {
+    throw new Error("Demo mode requires DEMO_USER_ID and DEMO_WORKSPACE_ID env vars.");
+  }
+  return {
+    userId,
+    workspaceId,
+  };
+};
+
 async function getActiveWorkspaceId(userId: string) {
+  if (AUTH_DISABLED) {
+    return ensureDemoContext().workspaceId;
+  }
+
   const supabase = createSupabaseServerClient();
   const { data, error } = await supabase
     .from("workspace_members")
@@ -49,7 +68,9 @@ export async function createTaskAction(payload: CreateTaskInput) {
     error: userError,
   } = await supabase.auth.getUser();
 
-  if (userError || !user) {
+  const isDemo = AUTH_DISABLED && !user;
+
+  if ((userError || !user) && !isDemo) {
     return { success: false, error: "You need to be signed in." };
   }
 
@@ -59,20 +80,33 @@ export async function createTaskAction(payload: CreateTaskInput) {
   }
 
   try {
-    const workspaceId = await getActiveWorkspaceId(user.id);
-    const insertPayload = {
-      ...parsed.data,
-      project_id: parsed.data.project_id ?? null,
-      due_date: parsed.data.due_date ?? null,
-      tags: parsed.data.tags ?? [],
-      workspace_id: workspaceId,
-      created_by: user.id,
-      assignee_id: user.id,
-    };
-
-    const { error } = await supabase.from("tasks").insert(insertPayload);
-    if (error) {
-      throw new Error(error.message);
+    if (isDemo) {
+      const admin = createSupabaseAdminClient();
+      const { userId, workspaceId } = ensureDemoContext();
+      const insertPayload = {
+        ...parsed.data,
+        project_id: parsed.data.project_id ?? null,
+        due_date: parsed.data.due_date ?? null,
+        tags: parsed.data.tags ?? [],
+        workspace_id: workspaceId,
+        created_by: userId,
+        assignee_id: userId,
+      };
+      const { error } = await admin.from("tasks").insert(insertPayload);
+      if (error) throw new Error(error.message);
+    } else if (user) {
+      const workspaceId = await getActiveWorkspaceId(user.id);
+      const insertPayload = {
+        ...parsed.data,
+        project_id: parsed.data.project_id ?? null,
+        due_date: parsed.data.due_date ?? null,
+        tags: parsed.data.tags ?? [],
+        workspace_id: workspaceId,
+        created_by: user.id,
+        assignee_id: user.id,
+      };
+      const { error } = await supabase.from("tasks").insert(insertPayload);
+      if (error) throw new Error(error.message);
     }
   } catch (error) {
     console.error(error);
@@ -92,7 +126,9 @@ export async function updateTaskStatusAction(taskId: string, status: z.infer<typ
     return { success: false, error: "Invalid payload." };
   }
 
-  const { error } = await supabase.from("tasks").update({ status: statusParse.data }).eq("id", idParse.data);
+  const client = AUTH_DISABLED ? createSupabaseAdminClient() : supabase;
+
+  const { error } = await client.from("tasks").update({ status: statusParse.data }).eq("id", idParse.data);
   if (error) {
     console.error(error);
     return { success: false, error: error.message };
@@ -116,7 +152,9 @@ export async function moveTaskToQuadrantAction(taskId: string, quadrant: Quadran
     eliminate: { is_important: false, is_urgent: false },
   };
 
-  const { error } = await supabase.from("tasks").update(quadrantMap[quadrant]).eq("id", idParse.data);
+  const client = AUTH_DISABLED ? createSupabaseAdminClient() : supabase;
+
+  const { error } = await client.from("tasks").update(quadrantMap[quadrant]).eq("id", idParse.data);
   if (error) {
     console.error(error);
     return { success: false, error: error.message };
@@ -133,7 +171,9 @@ export async function deleteTaskAction(taskId: string) {
     return { success: false, error: "Invalid task id." };
   }
 
-  const { error } = await supabase.from("tasks").delete().eq("id", idParse.data);
+  const client = AUTH_DISABLED ? createSupabaseAdminClient() : supabase;
+
+  const { error } = await client.from("tasks").delete().eq("id", idParse.data);
   if (error) {
     console.error(error);
     return { success: false, error: error.message };
@@ -144,6 +184,11 @@ export async function deleteTaskAction(taskId: string) {
 }
 
 export async function signOutAction() {
+  if (AUTH_DISABLED) {
+    revalidatePath("/");
+    return { success: true };
+  }
+
   const supabase = createSupabaseServerClient();
   const { error } = await supabase.auth.signOut();
   if (error) {

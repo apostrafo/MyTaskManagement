@@ -13,8 +13,13 @@ const getEnv = (name: SupabaseEnvVar) => {
 };
 
 const PROTECTED_PATHS = ["/dashboard", "/api"];
+const AUTH_DISABLED = process.env.AUTH_DISABLED === "true";
 
 export async function middleware(request: NextRequest) {
+  if (AUTH_DISABLED) {
+    return NextResponse.next();
+  }
+
   const requestHeaders = new Headers(request.headers);
   const response = NextResponse.next({
     request: {

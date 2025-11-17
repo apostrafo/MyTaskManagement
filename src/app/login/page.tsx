@@ -2,7 +2,13 @@ import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { LoginCard } from "@/components/auth/login-card";
 
+const AUTH_DISABLED = process.env.AUTH_DISABLED === "true";
+
 export default async function LoginPage() {
+  if (AUTH_DISABLED) {
+    redirect("/dashboard");
+  }
+
   const supabase = createSupabaseServerClient();
   const {
     data: { session },
