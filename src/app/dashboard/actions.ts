@@ -42,7 +42,7 @@ async function getActiveWorkspaceId(userId: string) {
     return ensureDemoContext().workspaceId;
   }
 
-  const supabase = createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase
     .from("workspace_members")
     .select("workspace_id")
@@ -62,7 +62,7 @@ async function getActiveWorkspaceId(userId: string) {
 }
 
 export async function createTaskAction(payload: CreateTaskInput) {
-  const supabase = createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient();
   const {
     data: { user },
     error: userError,
@@ -118,7 +118,7 @@ export async function createTaskAction(payload: CreateTaskInput) {
 }
 
 export async function updateTaskStatusAction(taskId: string, status: z.infer<typeof statusSchema>) {
-  const supabase = createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient();
   const idParse = idSchema.safeParse(taskId);
   const statusParse = statusSchema.safeParse(status);
 
@@ -139,7 +139,7 @@ export async function updateTaskStatusAction(taskId: string, status: z.infer<typ
 }
 
 export async function moveTaskToQuadrantAction(taskId: string, quadrant: QuadrantKey) {
-  const supabase = createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient();
   const idParse = idSchema.safeParse(taskId);
   if (!idParse.success) {
     return { success: false, error: "Invalid task id." };
@@ -165,7 +165,7 @@ export async function moveTaskToQuadrantAction(taskId: string, quadrant: Quadran
 }
 
 export async function deleteTaskAction(taskId: string) {
-  const supabase = createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient();
   const idParse = idSchema.safeParse(taskId);
   if (!idParse.success) {
     return { success: false, error: "Invalid task id." };
@@ -189,7 +189,7 @@ export async function signOutAction() {
     return { success: true };
   }
 
-  const supabase = createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient();
   const { error } = await supabase.auth.signOut();
   if (error) {
     console.error(error);

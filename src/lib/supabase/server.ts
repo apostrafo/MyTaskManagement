@@ -12,8 +12,8 @@ function ensureEnv(name: SupabaseEnvVar) {
   return value;
 }
 
-export const createSupabaseServerClient = () => {
-  const cookieStore = cookies();
+export const createSupabaseServerClient = async () => {
+  const cookieStore = await cookies();
 
   return createServerClient(ensureEnv("NEXT_PUBLIC_SUPABASE_URL"), ensureEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY"), {
     cookies: {

@@ -5,7 +5,7 @@ const redirectToDashboard = (request: NextRequest) =>
   new URL(request.nextUrl.searchParams.get("redirectedFrom") ?? "/dashboard", request.url);
 
 async function handleAuthCallback(request: NextRequest) {
-  const supabase = createSupabaseServerClient();
+  const supabase = await createSupabaseServerClient();
 
   try {
     await supabase.auth.exchangeCodeForSession(request.url);
